@@ -5,14 +5,24 @@
 
 import Element, {ElementProps, ElementStatePropNames, ElementAnimateConfig, ElementCommonState} from '../Element';
 import BoundingRect from '../core/BoundingRect';
-import { PropType, Dictionary, MapToType } from '../core/types';
+import { PropType, Dictionary, MapToType, ImageLike } from '../core/types';
 import Path from './Path';
 import { keys, extend, createObject } from '../core/util';
 import Animator from '../animation/Animator';
+import { PatternObject } from './Pattern';
+import { LinearGradientObject } from './LinearGradient';
+import { RadialGradientObject } from './RadialGradient';
 
 // type CalculateTextPositionResult = ReturnType<typeof calculateTextPosition>
 
 const STYLE_MAGIC_KEY = '__zr_style_' + Math.round((Math.random() * 10));
+
+export type CommonColor = string | PatternObject | LinearGradientObject | RadialGradientObject;
+// legacy PatternObject
+export type ImageColor = {
+    image: ImageLike | string
+};
+export type FullColor = CommonColor | ImageColor;
 
 export interface CommonStyleProps {
     shadowBlur?: number

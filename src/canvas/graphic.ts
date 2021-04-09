@@ -65,8 +65,8 @@ export function createCanvasPattern(
     if (isImageReady(image)) {
         const canvasPattern = ctx.createPattern(image, pattern.repeat || 'repeat');
         if (
-            typeof DOMMatrix === 'function'
-            && canvasPattern.setTransform   // setTransform may not be supported in some old devices.
+            canvasPattern && canvasPattern.setTransform   // setTransform may not be supported in some old devices.
+            && typeof DOMMatrix === 'function'
         ) {
             const matrix = new DOMMatrix();
             matrix.rotateSelf(0, 0, (pattern.rotation || 0) / Math.PI * 180);
@@ -78,10 +78,89 @@ export function createCanvasPattern(
     }
 }
 
-// Draw Path Elements
-function brushPath(ctx: CanvasRenderingContext2D, el: Path, style: PathStyleProps, inBatch: boolean) {
+function setFillAndStroke(ctx: CanvasRenderingContext2D, el: Path | TSpan, style: PathStyleProps) {
     let hasStroke = styleHasStroke(style);
     let hasFill = styleHasFill(style);
+
+    const fill = style.fill;
+    const stroke = style.stroke;
+
+    const hasFillGradient = hasFill && !!(fill as GradientObject).colorStops;
+    const hasStrokeGradient = hasStroke && !!(stroke as GradientObject).colorStops;
+    const hasFillPattern = hasFill && !!(fill as PatternObject).image;
+    const hasStrokePattern = hasStroke && !!(stroke as PatternObject).image;
+
+    let fillGradient;
+    let strokeGradient;
+    let fillPattern;
+    let strokePattern;
+    let rect;
+    if (hasFillGradient || hasStrokeGradient) {
+        rect = el.getBoundingRect();
+    }
+    // Update gradient because bounding rect may changed
+    if (hasFillGradient) {
+        fillGradient = el.__dirty
+            ? getCanvasGradient(ctx, fill as (LinearGradientObject | RadialGradientObject), rect)
+            : el.__canvasFillGradient;
+        // No need to clear cache when fill is not gradient.
+        // It will always been updated when fill changed back to gradient.
+        el.__canvasFillGradient = fillGradient;
+    }
+    if (hasStrokeGradient) {
+        strokeGradient = el.__dirty
+            ? getCanvasGradient(ctx, stroke as (LinearGradientObject | RadialGradientObject), rect)
+            : el.__canvasStrokeGradient;
+        el.__canvasStrokeGradient = strokeGradient;
+    }
+    if (hasFillPattern) {
+        // Pattern might be null if image not ready (even created from dataURI)
+        fillPattern = (el.__dirty || !el.__canvasFillPattern)
+            ? createCanvasPattern(ctx, fill as PatternObject, el)
+            : el.__canvasFillPattern;
+        el.__canvasFillPattern = fillPattern;
+    }
+    if (hasStrokePattern) {
+        // Pattern might be null if image not ready (even created from dataURI)
+        strokePattern = (el.__dirty || !el.__canvasStrokePattern)
+            ? createCanvasPattern(ctx, stroke as PatternObject, el)
+            : el.__canvasStrokePattern;
+        el.__canvasStrokePattern = fillPattern;
+    }
+    // Use the gradient or pattern
+    if (hasFillGradient) {
+        // PENDING If may have affect the state
+        ctx.fillStyle = fillGradient;
+    }
+    else if (hasFillPattern) {
+        if (fillPattern) {  // createCanvasPattern may return false if image is not ready.
+            ctx.fillStyle = fillPattern;
+        }
+        else {
+            // Don't fill if image is not ready
+            hasFill = false;
+        }
+    }
+    if (hasStrokeGradient) {
+        ctx.strokeStyle = strokeGradient;
+    }
+    else if (hasStrokePattern) {
+        if (strokePattern) {
+            ctx.strokeStyle = strokePattern;
+        }
+        else {
+            // Don't stroke if image is not ready
+            hasStroke = false;
+        }
+    }
+    return {
+        hasStroke,
+        hasFill
+    };
+}
+
+// Draw Path Elements
+function brushPath(ctx: CanvasRenderingContext2D, el: Path, style: PathStyleProps, inBatch: boolean) {
 
     const strokePercent = style.strokePercent;
     const strokePart = strokePercent < 1;
@@ -97,78 +176,17 @@ function brushPath(ctx: CanvasRenderingContext2D, el: Path, style: PathStyleProp
 
     const path = el.path || pathProxyForDraw;
 
+    let hasStroke;
+    let hasFill;
+
     if (!inBatch) {
-        const fill = style.fill;
-        const stroke = style.stroke;
-
-        const hasFillGradient = hasFill && !!(fill as GradientObject).colorStops;
-        const hasStrokeGradient = hasStroke && !!(stroke as GradientObject).colorStops;
-        const hasFillPattern = hasFill && !!(fill as PatternObject).image;
-        const hasStrokePattern = hasStroke && !!(stroke as PatternObject).image;
-
-        let fillGradient;
-        let strokeGradient;
-        let fillPattern;
-        let strokePattern;
-        let rect;
-        if (hasFillGradient || hasStrokeGradient) {
-            rect = el.getBoundingRect();
-        }
-        // Update gradient because bounding rect may changed
-        if (hasFillGradient) {
-            fillGradient = el.__dirty
-                ? getCanvasGradient(ctx, fill as (LinearGradientObject | RadialGradientObject), rect)
-                : el.__canvasFillGradient;
-            // No need to clear cache when fill is not gradient.
-            // It will always been updated when fill changed back to gradient.
-            el.__canvasFillGradient = fillGradient;
-        }
-        if (hasStrokeGradient) {
-            strokeGradient = el.__dirty
-                ? getCanvasGradient(ctx, stroke as (LinearGradientObject | RadialGradientObject), rect)
-                : el.__canvasStrokeGradient;
-            el.__canvasStrokeGradient = strokeGradient;
-        }
-        if (hasFillPattern) {
-            // Pattern might be null if image not ready (even created from dataURI)
-            fillPattern = (el.__dirty || !el.__canvasFillPattern)
-                ? createCanvasPattern(ctx, fill as PatternObject, el)
-                : el.__canvasFillPattern;
-            el.__canvasFillPattern = fillPattern;
-        }
-        if (hasStrokePattern) {
-            // Pattern might be null if image not ready (even created from dataURI)
-            strokePattern = (el.__dirty || !el.__canvasStrokePattern)
-                ? createCanvasPattern(ctx, stroke as PatternObject, el)
-                : el.__canvasStrokePattern;
-            el.__canvasStrokePattern = fillPattern;
-        }
-        // Use the gradient or pattern
-        if (hasFillGradient) {
-            // PENDING If may have affect the state
-            ctx.fillStyle = fillGradient;
-        }
-        else if (hasFillPattern) {
-            if (fillPattern) {  // createCanvasPattern may return false if image is not ready.
-                ctx.fillStyle = fillPattern;
-            }
-            else {
-                // Don't fill if image is not ready
-                hasFill = false;
-            }
-        }
-        if (hasStrokeGradient) {
-            ctx.strokeStyle = strokeGradient;
-        }
-        else if (hasStrokePattern) {
-            if (strokePattern) {
-                ctx.strokeStyle = strokePattern;
-            }
-            else {
-                // Don't stroke if image is not ready
-                hasStroke = false;
-            }
-        }
+        const fillStroke = setFillAndStroke(ctx, el, style);
+        hasStroke = fillStroke.hasStroke;
+        hasFill = fillStroke.hasFill;
+    }
+    else {
+        hasStroke = styleHasStroke(style);
+        hasFill = styleHasFill(style);
     }
 
     let lineDash = style.lineDash && style.lineWidth > 0 && normalizeLineDash(style.lineDash, style.lineWidth);
@@ -345,19 +363,21 @@ function brushText(ctx: CanvasRenderingContext2D, el: TSpan, style: TSpanStylePr
             }
         }
 
+        const { hasStroke, hasFill } = setFillAndStroke(ctx, el, style);
+
         if (style.strokeFirst) {
-            if (styleHasStroke(style)) {
+            if (hasStroke) {
                 ctx.strokeText(text, style.x, style.y);
             }
-            if (styleHasFill(style)) {
+            if (hasFill) {
                 ctx.fillText(text, style.x, style.y);
             }
         }
         else {
-            if (styleHasFill(style)) {
+            if (hasFill) {
                 ctx.fillText(text, style.x, style.y);
             }
-            if (styleHasStroke(style)) {
+            if (hasStroke) {
                 ctx.strokeText(text, style.x, style.y);
             }
         }

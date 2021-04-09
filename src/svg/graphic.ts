@@ -169,8 +169,14 @@ class SVGPathRebuilder implements PathRebuilder {
     arc(cx: number, cy: number, r: number, startAngle: number, endAngle: number, anticlockwise: boolean) {
         this.ellipse(cx, cy, r, r, 0, startAngle, endAngle, anticlockwise);
     }
-    ellipse(cx: number, cy: number, rx: number, ry: number, psi: number, startAngle: number, endAngle: number, anticlockwise: boolean) {
-
+    ellipse(
+        cx: number, cy: number,
+        rx: number, ry: number,
+        psi: number,
+        startAngle: number,
+        endAngle: number,
+        anticlockwise: boolean
+    ) {
         const firstCmd = this._d.length === 0;
 
         let dTheta = endAngle - startAngle;

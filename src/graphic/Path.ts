@@ -2,16 +2,15 @@ import Displayable, { DisplayableProps,
     CommonStyleProps,
     DEFAULT_COMMON_STYLE,
     DisplayableStatePropNames,
-    DEFAULT_COMMON_ANIMATION_PROPS
+    DEFAULT_COMMON_ANIMATION_PROPS,
+    FullColor
 } from './Displayable';
 import Element, { ElementAnimateConfig } from '../Element';
 import PathProxy from '../core/PathProxy';
 import * as pathContain from '../contain/path';
-import Pattern, { PatternObject } from './Pattern';
+import { PatternObject } from './Pattern';
 import { Dictionary, PropType, MapToType } from '../core/types';
 import BoundingRect from '../core/BoundingRect';
-import { LinearGradientObject } from './LinearGradient';
-import { RadialGradientObject } from './RadialGradient';
 import { defaults, keys, extend, clone, isString, createObject } from '../core/util';
 import Animator from '../animation/Animator';
 import { lum } from '../tool/color';
@@ -19,8 +18,8 @@ import { DARK_LABEL_COLOR, LIGHT_LABEL_COLOR, DARK_MODE_THRESHOLD, LIGHTER_LABEL
 
 
 export interface PathStyleProps extends CommonStyleProps {
-    fill?: string | PatternObject | LinearGradientObject | RadialGradientObject
-    stroke?: string | PatternObject | LinearGradientObject | RadialGradientObject
+    fill?: FullColor
+    stroke?: FullColor
     decal?: PatternObject
 
     /**

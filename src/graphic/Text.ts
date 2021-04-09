@@ -11,12 +11,18 @@ import ZRImage from './Image';
 import Rect from './shape/Rect';
 import BoundingRect from '../core/BoundingRect';
 import { MatrixArray, copy } from '../core/matrix';
-import Displayable, { DisplayableStatePropNames, DisplayableProps, DEFAULT_COMMON_ANIMATION_PROPS } from './Displayable';
-import Path from './Path';
+import Displayable, {
+    DisplayableStatePropNames,
+    DisplayableProps,
+    DEFAULT_COMMON_ANIMATION_PROPS,
+    FullColor,
+    ImageColor
+} from './Displayable';
 import { ZRenderType } from '../zrender';
 import Animator from '../animation/Animator';
 import Transformable from '../core/Transformable';
 import { ElementCommonState } from '../Element';
+import { GradientObject } from './Gradient';
 
 type TextContentBlock = ReturnType<typeof parseRichText>
 type TextLine = TextContentBlock['lines'][0]
@@ -27,8 +33,8 @@ export interface TextStylePropsPart {
     // TODO Text is assigned inside zrender
     text?: string
 
-    fill?: string
-    stroke?: string
+    fill?: FullColor
+    stroke?: FullColor
 
     opacity?: number
     fillOpacity?: number
@@ -104,9 +110,7 @@ export interface TextStylePropsPart {
     textShadowOffsetY?: number
 
     // Shadow, background, border of text box.
-    backgroundColor?: string | {
-        image: ImageLike | string
-    }
+    backgroundColor?: FullColor
 
     /**
      * Can be `2` or `[2, 4]` or `[2, 3, 4, 5]`
@@ -117,7 +121,7 @@ export interface TextStylePropsPart {
      */
     margin?: number
 
-    borderColor?: string
+    borderColor?: FullColor
     borderWidth?: number
     borderRadius?: number | number[]
 
@@ -573,13 +577,13 @@ class ZRText extends Displayable<TextProps> {
             }
 
             if (textStroke) {
-                subElStyle.stroke = textStroke as string;
+                subElStyle.stroke = textStroke;
                 subElStyle.lineWidth = style.lineWidth || defaultLineWidth;
                 subElStyle.lineDash = style.lineDash;
                 subElStyle.lineDashOffset = style.lineDashOffset || 0;
             }
             if (textFill) {
-                subElStyle.fill = textFill as string;
+                subElStyle.fill = textFill;
             }
 
             subElStyle.font = textFont;
@@ -735,7 +739,7 @@ class ZRText extends Displayable<TextProps> {
         const defaultStyle = this._defaultStyle;
         let useDefaultFill = false;
         let defaultLineWidth = 0;
-        const textFill = getStroke(
+        const textFill = getFill(
             'fill' in tokenStyle ? tokenStyle.fill
                 : 'fill' in style ? style.fill
                 : (useDefaultFill = true, defaultStyle.fill)
@@ -805,16 +809,19 @@ class ZRText extends Displayable<TextProps> {
         const textBorderWidth = style.borderWidth;
         const textBorderColor = style.borderColor;
         const isPlainBg = isString(textBackgroundColor);
+        const isGradientBg = !isPlainBg && textBackgroundColor && (textBackgroundColor as GradientObject).type;
         const textBorderRadius = style.borderRadius;
         const self = this;
 
         let rectEl: Rect;
         let imgEl: ZRImage;
-        if (isPlainBg || (textBorderWidth && textBorderColor)) {
+        if (isPlainBg || isGradientBg || (textBorderWidth && textBorderColor)) {
             // Background is color
             rectEl = this._getOrCreateChild(Rect);
             rectEl.useStyle(rectEl.createStyle());    // Create an empty style.
-            rectEl.style.fill = null;
+            rectEl.style.fill = isPlainBg
+                ? null
+                : textBackgroundColor;
             const rectShape = rectEl.shape;
             rectShape.x = x;
             rectShape.y = y;
@@ -829,14 +836,14 @@ class ZRText extends Displayable<TextProps> {
             rectStyle.fill = textBackgroundColor as string || null;
             rectStyle.fillOpacity = retrieve2(style.fillOpacity, 1);
         }
-        else if (textBackgroundColor && (textBackgroundColor as {image: ImageLike}).image) {
+        else if (textBackgroundColor && (textBackgroundColor as ImageColor).image) {
             imgEl = this._getOrCreateChild(ZRImage);
             imgEl.onload = function () {
                 // Refresh and relayout after image loaded.
                 self.dirtyStyle();
             };
             const imgStyle = imgEl.style;
-            imgStyle.image = (textBackgroundColor as {image: ImageLike}).image;
+            imgStyle.image = (textBackgroundColor as ImageColor).image;
             imgStyle.x = x;
             imgStyle.y = y;
             imgStyle.width = width;
@@ -946,8 +953,8 @@ function getStroke(
 ) {
     return (stroke == null || lineWidth <= 0 || stroke === 'transparent' || stroke === 'none')
         ? null
-        : ((stroke as any).image || (stroke as any).colorStops)
-        ? '#000'
+        //: ((stroke as any).image || (stroke as any).colorStops)
+        //? '#000'
         : stroke;
 }
 
@@ -957,8 +964,8 @@ function getFill(
     return (fill == null || fill === 'none')
         ? null
         // TODO pattern and gradient?
-        : ((fill as any).image || (fill as any).colorStops)
-        ? '#000'
+        //: ((fill as any).image || (fill as any).colorStops)
+        //? '#000'
         : fill;
 }
 
